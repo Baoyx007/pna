@@ -1,8 +1,9 @@
-#![deny(missing_docs)]
+// #![deny(missing_docs)]
 //! kv store
 
-pub use kv::KvStore;
-pub use error::Result;
+pub use error::{KvsError, Result};
+pub use kv::{KvStore,KvsCommand };
 
-mod kv;
 mod error;
+mod kv;
+
