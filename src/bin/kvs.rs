@@ -1,8 +1,8 @@
 // use clap::App;
 use clap::{App, Arg, SubCommand};
 use kvs::{KvStore, KvsCommand, Result};
-use structopt::StructOpt;
 use std::path::Path;
+use structopt::StructOpt;
 
 fn get_from_clap() {
     let matches = App::new(env!("CARGO_PKG_NAME"))
@@ -49,7 +49,11 @@ fn main() -> Result<()> {
             store.set(key, value)?;
         }
         KvsCommand::Get { key } => {
-            store.get(key)?;
+            let val = store.get(key.clone())?;
+            match val {
+                Some(v) => println!("get value: {}", v),
+                None => println!("not found key {}", key),
+            }
         }
         KvsCommand::Rm { key } => {
             store.remove(key)?;

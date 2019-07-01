@@ -8,6 +8,8 @@ pub enum KvsError {
     Serde(#[cause] serde_json::Error),
     #[fail(display = "Io error: {}", _0)]
     Io(#[cause] io::Error),
+    #[fail(display = "key not found: {}", _0)]
+    NotFound(String),
     #[fail(display = "An unknown error has occurred.")]
     UnknownError,
 }
