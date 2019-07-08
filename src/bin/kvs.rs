@@ -58,7 +58,6 @@ fn main() -> Result<()> {
         KvsCommand::Rm { key } => {
             store.remove(key)?;
         }
-        _ => unreachable!(),
     }
 
     Ok(())

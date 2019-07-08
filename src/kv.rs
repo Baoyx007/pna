@@ -1,15 +1,18 @@
 use crate::{KvsError, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::fs::File;
 use std::fs::OpenOptions;
+use std::fs::{self, File};
 use std::io;
 use std::io::prelude::*;
 use std::io::SeekFrom;
 use std::io::Write;
 use std::io::{BufReader, BufWriter};
 use std::path::Path;
+use std::path::PathBuf;
 use structopt::StructOpt;
+
+const COMPACTION_THRESHOLD: u64 = 1024 * 1024;
 
 /// in memory KvStore
 /// ```rust
@@ -26,7 +29,9 @@ use structopt::StructOpt;
 pub struct KvStore {
   wirter: BufWriter<File>,
   reader: BufReader<File>,
-  log_pointer: HashMap<String, u64>,
+  /// <key, log position offsets>
+  index: HashMap<String, u64>,
+  gen: u64,
 }
 
 impl KvStore {
@@ -39,18 +44,26 @@ impl KvStore {
   // }
 
   ///
-  pub fn open(path: &Path) -> Result<Self> {
+  pub fn open(path: impl Into<PathBuf>) -> Result<Self> {
+    let path = path.into();
+    fs::create_dir_all(&path)?;
+    fs::read_dir(&path)?
+      .flat_map(|entry| -> Result<_> { Ok(entry?.path()) })
+      .filter(|path| path.is_file() && path.extension() == Some("log".as_ref()));
+    // .flat_map(|entry| entry)
+    // .filter(|entry| entry);
     let f = OpenOptions::new()
       .write(true)
       .append(true)
       .create(true)
-      .open(path)?;
-    let mut reader = BufReader::new(File::open(path)?);
-    let log_pointer = build_pointer(&mut reader);
+      .open(&path)?;
+    let mut reader = BufReader::new(File::open(&path)?);
+    let index = build_pointer(&mut reader);
 
     let wirter = BufWriter::new(f);
     Ok(KvStore {
-      log_pointer,
+      gen: 0,
+      index,
       wirter,
       reader,
     })
@@ -58,7 +71,7 @@ impl KvStore {
 
   /// Get the string value of a string key. If the key does not exist, return None. Return an error if the value is not read successfully.
   pub fn get(&mut self, key: String) -> Result<Option<String>> {
-    if let Some(&index) = self.log_pointer.get(&key) {
+    if let Some(&index) = self.index.get(&key) {
       self.reader.seek(SeekFrom::Start(index))?;
       println!("{:?}", self.reader.stream_position());
       let cmd = serde_json::Deserializer::from_reader(&mut self.reader)
@@ -81,14 +94,22 @@ impl KvStore {
   /// Set the value of a string key to a string. Return an error if the value is not written successfully.
   /// if the key already exist,the previous value will be overwritten
   pub fn set(&mut self, key: String, value: String) -> Result<()> {
-    let ser = serde_json::ser::to_string(&KvsCommand::Set { key, value })?;
-    self.wirter.write_all(ser.as_bytes())?;
+    serde_json::to_writer(&mut self.wirter, &KvsCommand::Set { key, value })?;
+    self.wirter.flush()?;
+    // let ser = serde_json::ser::to_string()?;
+    // self.wirter.write_all(ser.as_bytes())?;
     Ok(())
   }
 
   /// Remove a given key. Return an error if the key does not exist or is not removed successfully.
   pub fn remove(&mut self, key: String) -> Result<()> {
-    panic!();
+    if self.index.get(&key).is_some() {
+      serde_json::to_writer(&mut self.wirter, &KvsCommand::Rm { key })?;
+      self.wirter.flush()?;
+      Ok(())
+    } else {
+      Err(KvsError::NotFound(key.clone()))
+    }
     // self.map.remove(&key).unwrap();
   }
 }
