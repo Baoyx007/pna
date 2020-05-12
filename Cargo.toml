@@ -1,7 +1,7 @@
 [package]
 name = "kvs"
 version = "0.1.0"
-authors = ["yongxiang.bao <yongxiang.bao@mobilemd.cn>"]
+authors = ["yongxiang.bao"]
 edition = "2018"
 
 [dependencies]
